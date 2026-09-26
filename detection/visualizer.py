@@ -72,8 +72,13 @@ def draw_detection_overlay(
     }
 
     # 1. Draw Spot Polygons
-    for spot in spots:
-        spot_id = str(spot.get("id") or spot.get("spot_id") or "spot")
+    for idx, spot in enumerate(spots):
+        spot_id = spot.get("id")
+        if spot_id is None:
+            spot_id = spot.get("spot_id")
+        if spot_id is None:
+            spot_id = f"spot_{idx + 1}"
+        spot_id = str(spot_id)
         raw_poly = spot.get("polygon") or spot.get("roi") or spot.get("box")
         if raw_poly is None:
             continue
