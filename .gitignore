@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.venv/
+venv/
+ENV/
+
+# PyTorch / Ultralytics
+runs/
+*.pt
+*.onnx
+
+# Data & Storage
+storage/data/
+*.sqlite
+*.sqlite3
+*.db
+uploads/
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+__*
