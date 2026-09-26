@@ -7,6 +7,7 @@ from detection.occupancy import (
     is_point_in_polygon,
     evaluate_occupancy,
 )
+from detection.visualizer import draw_detection_overlay
 
 __all__ = [
     "VehicleDetector",
@@ -17,4 +18,5 @@ __all__ = [
     "normalize_spot_polygon",
     "is_point_in_polygon",
     "evaluate_occupancy",
+    "draw_detection_overlay",
 ]
