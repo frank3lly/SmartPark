@@ -42,7 +42,7 @@ class VehicleDetector:
         self,
         model_name: str = "yolov8n.pt",
         device: Optional[str] = None,
-        conf_threshold: float = 0.35,
+        conf_threshold: float = 0.25,
     ) -> None:
         if device is not None:
             self.device = device
