@@ -27,3 +27,5 @@ uploads/
 .DS_Store
 *.log
 __*
+test*
+verify*

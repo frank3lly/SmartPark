@@ -1,7 +1,7 @@
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
@@ -89,18 +89,23 @@ class VehicleDetector:
         self,
         image: np.ndarray,
         conf_threshold: Optional[float] = None,
+        imgsz: Optional[Union[int, Tuple[int, int]]] = None,
     ) -> Tuple[List[VehicleDetection], float]:
         prepared_img = self._prepare_image(image)
         threshold = conf_threshold if conf_threshold is not None else self.conf_threshold
 
+        predict_kwargs: Dict[str, Any] = {
+            "source": prepared_img,
+            "device": self.device,
+            "classes": list(TARGET_VEHICLE_CLASSES.keys()),
+            "conf": threshold,
+            "verbose": False,
+        }
+        if imgsz is not None:
+            predict_kwargs["imgsz"] = imgsz
+
         start_time = time.perf_counter()
-        results = self.model.predict(
-            source=prepared_img,
-            device=self.device,
-            classes=list(TARGET_VEHICLE_CLASSES.keys()),
-            conf=threshold,
-            verbose=False,
-        )
+        results = self.model.predict(**predict_kwargs)
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
 
         detections: List[VehicleDetection] = []

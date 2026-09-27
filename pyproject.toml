@@ -1,0 +1,13 @@
+[tool.basedpyright]
+reportAttributeAccessIssue = "none"
+reportDeprecated = "none"
+reportAny = "none"
+reportMissingTypeArgument = "none"
+reportUnnecessaryIsInstance = "none"
+reportExplicitAny = "none"
+reportUnknownMemberType = "none"
+reportUnknownVariableType = "none"
+reportUnknownParameterType = "none"
+reportMissingParameterType = "none"
+reportUnknownArgumentType = "none"
+reportUnusedCallResult = "none"
