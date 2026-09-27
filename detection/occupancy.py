@@ -100,6 +100,14 @@ def calculate_ground_anchor(
     return float(cx), float(anchor_y)
 
 
+def calculate_box_center(
+    box: Tuple[float, float, float, float],
+) -> Tuple[float, float]:
+    """Calculates the 2D geometric center (cx, cy) of a bounding box."""
+    x1, y1, x2, y2 = box
+    return float((x1 + x2) / 2.0), float((y1 + y2) / 2.0)
+
+
 def is_point_in_polygon(point: Tuple[float, float], polygon_contour: np.ndarray) -> bool:
     dist = cv2.pointPolygonTest(
         polygon_contour,
@@ -109,12 +117,48 @@ def is_point_in_polygon(point: Tuple[float, float], polygon_contour: np.ndarray)
     return dist >= 0
 
 
+def is_vehicle_in_spot(
+    box: Tuple[float, float, float, float],
+    polygon_contour: np.ndarray,
+    boundary_tolerance_px: float = 10.0,
+) -> Tuple[bool, Tuple[float, float]]:
+    """Evaluates whether a vehicle bounding box occupies a spot polygon contour.
+
+    Handles perspective distortions and bumper overhangs:
+    1. Primary: Tire ground-contact anchor inside or on polygon boundary.
+    2. Secondary: Bounding box center inside polygon boundary.
+    3. Tertiary: Ground anchor within boundary_tolerance_px distance of polygon perimeter.
+
+    Returns:
+        (is_inside: bool, representative_anchor_point: Tuple[float, float])
+    """
+    anchor = calculate_ground_anchor(box)
+    center = calculate_box_center(box)
+
+    # 1. Primary: Tire ground anchor strictly inside or on boundary
+    if cv2.pointPolygonTest(polygon_contour, (anchor[0], anchor[1]), False) >= 0:
+        return True, anchor
+
+    # 2. Secondary: Bounding box center inside polygon (handles perspective bumper overhang)
+    if cv2.pointPolygonTest(polygon_contour, (center[0], center[1]), False) >= 0:
+        return True, anchor
+
+    # 3. Tertiary: Tire anchor within boundary tolerance
+    if boundary_tolerance_px > 0.0:
+        dist = cv2.pointPolygonTest(polygon_contour, (anchor[0], anchor[1]), True)
+        if dist >= -boundary_tolerance_px:
+            return True, anchor
+
+    return False, anchor
+
+
 def evaluate_occupancy(
     spots: List[Dict[str, Any]],
     detections: List[Any],
     camera_id: str,
     inference_time_ms: float = 0.0,
     timestamp: Optional[float] = None,
+    boundary_tolerance_px: float = 10.0,
 ) -> OccupancyResponse:
     ts = timestamp if timestamp is not None else time.time()
 
@@ -126,15 +170,16 @@ def evaluate_occupancy(
             spots=[],
         )
 
-    # Pre-calculate anchors for all vehicle detections
-    anchored_detections: List[Tuple[Any, Tuple[float, float]]] = []
+    # Pre-extract boxes and anchors for all vehicle detections
+    processed_detections: List[Tuple[Any, Tuple[float, float, float, float], Tuple[float, float]]] = []
     for det in detections:
         box = getattr(det, "box", None)
         if box is None and isinstance(det, dict):
             box = det.get("box")
         if box is not None:
-            anchor = calculate_ground_anchor(tuple(box))
-            anchored_detections.append((det, anchor))
+            box_tuple = tuple(box)
+            anchor = calculate_ground_anchor(box_tuple)
+            processed_detections.append((det, box_tuple, anchor))
 
     results_list: List[SpotResult] = []
 
@@ -161,8 +206,13 @@ def evaluate_occupancy(
         best_det: Optional[Any] = None
         best_anchor: Optional[Tuple[float, float]] = None
 
-        for det, anchor in anchored_detections:
-            if is_point_in_polygon(anchor, contour):
+        for det, box_t, default_anchor in processed_detections:
+            in_spot, rep_anchor = is_vehicle_in_spot(
+                box=box_t,
+                polygon_contour=contour,
+                boundary_tolerance_px=boundary_tolerance_px,
+            )
+            if in_spot:
                 is_occupied = True
                 conf = getattr(det, "confidence", 0.0)
                 if isinstance(det, dict):
@@ -171,7 +221,7 @@ def evaluate_occupancy(
                 if conf >= best_conf:
                     best_conf = float(conf)
                     best_det = det
-                    best_anchor = anchor
+                    best_anchor = rep_anchor
 
         matched_class = None
         matched_box = None
