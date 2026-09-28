@@ -3,6 +3,11 @@ import json
 import logging
 import os
 import sys
+
+# Force Qt to use X11 (xcb) under WSL/Linux to prevent blank/frozen Wayland windows
+if "QT_QPA_PLATFORM" not in os.environ and os.environ.get("DISPLAY"):
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
+
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -157,7 +162,8 @@ class ROICalibrator:
 
     def run(self) -> None:
         """Runs the interactive OpenCV calibration GUI event loop."""
-        cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE)
+        cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(self.window_name, self.w, self.h)
         cv2.setMouseCallback(self.window_name, self.on_mouse)
 
         logger.info("=" * 60)
