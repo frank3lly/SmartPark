@@ -32,6 +32,7 @@ class ROICalibrator:
         image_path: str,
         camera_id: str,
         config_dir: str = "config/cameras",
+        clean_start: bool = False,
     ) -> None:
         self.image_path = image_path
         self.camera_id = camera_id
@@ -48,8 +49,11 @@ class ROICalibrator:
         self.in_progress_points: List[List[int]] = []
         self.mouse_pos: Tuple[int, int] = (0, 0)
         self.window_name = f"Parqueame Calibration - {self.camera_id} ({self.w}x{self.h})"
+        self.base_annotated_frame: np.ndarray = self.base_image.copy()
 
-        self._load_existing_config()
+        if not clean_start:
+            self._load_existing_config()
+        self._update_spots_cache()
 
     def _load_existing_config(self) -> None:
         """Loads spots from an existing JSON configuration file if present."""
@@ -63,18 +67,39 @@ class ROICalibrator:
             except Exception as e:
                 logger.warning(f"Could not load existing config '{self.config_file}': {e}")
 
+    def _update_spots_cache(self) -> None:
+        """Pre-renders all saved spots onto the cached base frame for instant rendering."""
+        frame = self.base_image.copy()
+        if not self.spots:
+            self.base_annotated_frame = frame
+            return
+
+        overlay = frame.copy()
+        for spot in self.spots:
+            poly = spot.get("polygon", [])
+            if len(poly) >= 3:
+                cnt = np.array(poly, dtype=np.int32).reshape((-1, 1, 2))
+                cv2.fillPoly(overlay, [cnt], COLOR_COMPLETED_FILL)
+                cv2.polylines(frame, [cnt], isClosed=True, color=COLOR_COMPLETED_OUTLINE, thickness=2)
+                v0 = poly[0]
+                label = spot.get("id", "spot")
+                cv2.putText(frame, label, (v0[0] + 4, v0[1] - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.45, COLOR_TEXT, 1, cv2.LINE_AA)
+
+        cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
+        self.base_annotated_frame = frame
+
     def on_mouse(self, event: int, x: int, y: int, flags: int, param: Any) -> None:
         """Mouse event handler for drawing quadrilateral corners."""
         self.mouse_pos = (x, y)
 
         if event == cv2.EVENT_LBUTTONDOWN:
             self.in_progress_points.append([int(x), int(y)])
+            print(f"\r[+] Corner {len(self.in_progress_points)}/4 clicked at ({x}, {y})", flush=True)
             logger.info(f"Added vertex {len(self.in_progress_points)}/4 at ({x}, {y})")
 
             if len(self.in_progress_points) == 4:
                 default_id = f"spot_{len(self.spots) + 1:02d}"
                 print(f"\n[?] Enter ID for completed spot [Default: {default_id}]: ", end="", flush=True)
-                # Quick non-blocking fallback if terminal input isn't active
                 user_id = default_id
                 try:
                     import select
@@ -89,6 +114,8 @@ class ROICalibrator:
                     "id": user_id,
                     "polygon": list(self.in_progress_points)
                 })
+                self._update_spots_cache()
+                print(f"\n[✓] Recorded '{user_id}' with 4 vertices. Press 'S' to save.", flush=True)
                 logger.info(f"Recorded '{user_id}' with 4 vertices. Press 'S' to save.")
                 self.in_progress_points.clear()
 
@@ -103,59 +130,54 @@ class ROICalibrator:
         }
         with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
+        print(f"\n[✓] Successfully saved {len(self.spots)} spots to '{self.config_file}'", flush=True)
         logger.info(f"Successfully saved {len(self.spots)} spots to '{self.config_file}'")
 
     def undo(self) -> None:
         """Reverts the last clicked vertex or completed spot."""
         if self.in_progress_points:
             popped = self.in_progress_points.pop()
+            print(f"\n[-] Undid in-progress point {popped}", flush=True)
             logger.info(f"Removed in-progress point {popped}")
         elif self.spots:
             popped_spot = self.spots.pop()
+            self._update_spots_cache()
+            print(f"\n[-] Undid spot '{popped_spot.get('id')}'", flush=True)
             logger.info(f"Removed spot '{popped_spot.get('id')}'")
         else:
             logger.info("Nothing to undo.")
 
     def render(self) -> np.ndarray:
-        """Renders the reference image with completed spots, in-progress lines, and UI bar."""
-        frame = self.base_image.copy()
-        overlay = frame.copy()
-
-        # 1. Draw existing completed spots
-        for spot in self.spots:
-            poly = spot.get("polygon", [])
-            if len(poly) >= 3:
-                cnt = np.array(poly, dtype=np.int32).reshape((-1, 1, 2))
-                cv2.fillPoly(overlay, [cnt], COLOR_COMPLETED_FILL)
-                cv2.polylines(frame, [cnt], isClosed=True, color=COLOR_COMPLETED_OUTLINE, thickness=2)
-                # Label at first vertex
-                v0 = poly[0]
-                label = spot.get("id", "spot")
-                cv2.putText(frame, label, (v0[0] + 4, v0[1] - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.45, COLOR_TEXT, 1, cv2.LINE_AA)
-
-        cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
+        """Renders cached spots with in-progress lines, high-contrast vertices, and status bar."""
+        frame = self.base_annotated_frame.copy()
 
         # 2. Draw in-progress vertices and connecting segments
         num_pts = len(self.in_progress_points)
         for i, pt in enumerate(self.in_progress_points):
-            cv2.circle(frame, (pt[0], pt[1]), 5, COLOR_IN_PROGRESS, -1)
-            cv2.putText(frame, str(i + 1), (pt[0] + 6, pt[1] - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.40, COLOR_IN_PROGRESS, 1)
+            # Double ring: white outer + bright orange inner for maximum contrast
+            cv2.circle(frame, (pt[0], pt[1]), 8, (255, 255, 255), 2)
+            cv2.circle(frame, (pt[0], pt[1]), 6, COLOR_IN_PROGRESS, -1)
+            # Text with shadow
+            label = str(i + 1)
+            cv2.putText(frame, label, (pt[0] + 9, pt[1] - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 0, 0), 2, cv2.LINE_AA)
+            cv2.putText(frame, label, (pt[0] + 8, pt[1] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 1, cv2.LINE_AA)
 
         if num_pts > 1:
             for i in range(num_pts - 1):
                 p1 = self.in_progress_points[i]
                 p2 = self.in_progress_points[i + 1]
+                cv2.line(frame, (p1[0], p1[1]), (p2[0], p2[1]), (0, 0, 0), 3)
                 cv2.line(frame, (p1[0], p1[1]), (p2[0], p2[1]), COLOR_IN_PROGRESS, 2)
 
         # Draw rubber-band line from last point to cursor
         if num_pts in (1, 2, 3):
             last_pt = self.in_progress_points[-1]
-            cv2.line(frame, (last_pt[0], last_pt[1]), self.mouse_pos, (0, 200, 255), 1)
+            cv2.line(frame, (last_pt[0], last_pt[1]), self.mouse_pos, (0, 220, 255), 2)
 
         # 3. Draw bottom instruction status bar
         bar_h = 28
         cv2.rectangle(frame, (0, self.h - bar_h), (self.w, self.h), COLOR_BAR_BG, -1)
-        status_txt = f"Spots: {len(self.spots)} | In-Progress: {num_pts}/4 | [Click] Add Pt | [U] Undo | [C] Cancel | [S] Save | [Q] Quit"
+        status_txt = f"Spots: {len(self.spots)} | In-Progress: {num_pts}/4 | [Click] Add Pt | [U] Undo | [C] Cancel | [R] Reset | [S] Save | [Q] Quit"
         cv2.putText(frame, status_txt, (10, self.h - 9), cv2.FONT_HERSHEY_SIMPLEX, 0.38, COLOR_TEXT, 1, cv2.LINE_AA)
 
         return frame
@@ -187,10 +209,13 @@ class ROICalibrator:
                     self.undo()
                 elif key in [ord("c"), ord("C")]:
                     self.in_progress_points.clear()
+                    print("\n[!] Cancelled in-progress spot points.", flush=True)
                     logger.info("Cancelled current spot points.")
                 elif key in [ord("r"), ord("R")]:
                     self.spots.clear()
                     self.in_progress_points.clear()
+                    self._update_spots_cache()
+                    print("\n[!] Reset all spots.", flush=True)
                     logger.info("Reset all spots.")
         finally:
             cv2.destroyAllWindows()
@@ -201,6 +226,7 @@ def main() -> int:
     parser.add_argument("--image", type=str, required=True, help="Path to reference snapshot image")
     parser.add_argument("--camera", type=str, required=True, help="Camera ID (e.g. cam_01)")
     parser.add_argument("--config-dir", type=str, default="config/cameras", help="Directory to save JSON configs")
+    parser.add_argument("--clean", action="store_true", help="Start with a blank canvas without loading existing spots")
     parser.add_argument("--dry-run", action="store_true", help="Validate setup without launching interactive GUI")
 
     args = parser.parse_args()
@@ -218,6 +244,7 @@ def main() -> int:
             image_path=args.image,
             camera_id=args.camera,
             config_dir=args.config_dir,
+            clean_start=args.clean,
         )
         calibrator.run()
         return 0
