@@ -36,6 +36,9 @@ class ServerState:
 
         # 2. Preload Camera Configurations
         cfg_path = Path(config_dir)
+        with self.lock:
+            self.camera_configs.clear()
+
         if cfg_path.exists():
             for p in sorted(cfg_path.glob("*.json")):
                 try:
@@ -137,13 +140,12 @@ class ServerState:
 
     def get_overall_status(self) -> OverallStatusResponse:
         with self.lock:
-            cameras_map: Dict[str, CameraStatusResponse] = {}
-            total_spots = 0
-            total_occupied = 0
-            total_free = 0
-
-            # Unlock temporarily or build inline to avoid nested lock
             cam_ids = list(self.camera_configs.keys())
+
+        cameras_map: Dict[str, CameraStatusResponse] = {}
+        total_spots = 0
+        total_occupied = 0
+        total_free = 0
 
         for cid in cam_ids:
             stat = self.get_camera_status(cid)
@@ -163,7 +165,13 @@ class ServerState:
 
     def get_health(self) -> HealthResponse:
         cuda_ok = torch.cuda.is_available()
-        dev_name = torch.cuda.get_device_name(0) if cuda_ok else "CPU"
+        dev_name = "CPU"
+        if cuda_ok:
+            try:
+                dev_name = torch.cuda.get_device_name(0)
+            except Exception:
+                dev_name = "CUDA (Unknown Device)"
+
         with self.lock:
             reg_count = len(self.camera_configs)
 

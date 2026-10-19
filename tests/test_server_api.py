@@ -79,6 +79,15 @@ def run_tests() -> int:
             f"{up_data['occupied_spots']} occupied, {up_data['free_spots']} free."
         )
 
+        # Microcontroller alias endpoint test
+        r_alias = client.post(
+            "/upload/cam_01?battery=85.5&voltage=3.95",
+            files={"file": ("vga_campus.jpg", sample_img_bytes, "image/jpeg")},
+        )
+        assert r_alias.status_code == 200, f"Alias upload failed: {r_alias.text}"
+        assert r_alias.json()["status"] == "success"
+        print("  [✓] Microcontroller upload alias (/upload/{camera_id}) verified.")
+
         # ---------------------------------------------------------
         # Phase 4: Post-Upload Cached State Verification & Battery
         # ---------------------------------------------------------
