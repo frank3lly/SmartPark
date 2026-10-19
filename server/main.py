@@ -5,9 +5,11 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from server.routers.analytics import router as analytics_router
 from server.routers.status import router as status_router
 from server.routers.upload import router as upload_router
 from server.state import server_state
+from storage.database import init_db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,6 +21,7 @@ logger = logging.getLogger("parqueame.server")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing Parqueame Smart Parking Server...")
+    init_db()
     server_state.initialize(config_dir="config/cameras")
     logger.info("Server initialization complete. Listening for incoming camera frames.")
     yield
@@ -44,6 +47,7 @@ app.add_middleware(
 # Register routers
 app.include_router(upload_router)
 app.include_router(status_router)
+app.include_router(analytics_router)
 
 
 @app.get("/", tags=["General"])

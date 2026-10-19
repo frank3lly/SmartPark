@@ -12,6 +12,7 @@ from detection.occupancy import OccupancyResponse, evaluate_occupancy
 from detection.visualizer import draw_detection_overlay
 from server.schemas import UploadResponse
 from server.state import server_state
+from storage.repository import record_detection_event
 
 logger = logging.getLogger("parqueame.server.upload")
 router = APIRouter(tags=["Ingestion"])
@@ -134,7 +135,23 @@ async def upload_camera_frame(
         f"{occupancy_resp.occupied_count} occupied, {occupancy_resp.free_count} free."
     )
 
-    # 5. Return summary
+    # 5. Persist detection event to SQLite database
+    try:
+        await asyncio.to_thread(
+            record_detection_event,
+            camera_id=camera_cfg.camera_id,
+            timestamp=occupancy_resp.timestamp,
+            inference_time_ms=occupancy_resp.inference_time_ms,
+            total_spots=occupancy_resp.total_spots,
+            occupied_spots=occupancy_resp.occupied_count,
+            spots=occupancy_resp.spots,
+            battery_percentage=battery,
+            battery_voltage=voltage,
+        )
+    except Exception as e:
+        logger.error(f"Failed to record detection event to SQLite: {e}")
+
+    # 6. Return summary
     return UploadResponse(
         status="success",
         camera_id=camera_id,
