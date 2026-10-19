@@ -1,9 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from server.routers.analytics import router as analytics_router
 from server.routers.status import router as status_router
@@ -21,6 +23,7 @@ logger = logging.getLogger("parqueame.server")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing Parqueame Smart Parking Server...")
+    Path("storage/images").mkdir(parents=True, exist_ok=True)
     init_db()
     server_state.initialize(config_dir="config/cameras")
     logger.info("Server initialization complete. Listening for incoming camera frames.")
@@ -43,6 +46,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Static file serving for rolling annotated camera images
+Path("storage/images").mkdir(parents=True, exist_ok=True)
+app.mount("/storage/images", StaticFiles(directory="storage/images"), name="images")
 
 # Register routers
 app.include_router(upload_router)

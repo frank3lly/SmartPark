@@ -192,6 +192,12 @@ def run_tests() -> int:
         assert r_time.status_code == 200
         print("  [✓] GET /api/v1/analytics/timeline valid.")
 
+        r_sum = client.get("/api/v1/analytics/summary?hours=24")
+        assert r_sum.status_code == 200
+        assert "total_cameras" in r_sum.json()
+        assert "timeline" in r_sum.json()
+        print("  [✓] GET /api/v1/analytics/summary valid.")
+
         r_bad = client.get("/api/v1/analytics/cameras/ghost_camera")
         assert r_bad.status_code == 404
         print("  [✓] Non-existent camera correctly rejected with 404.")

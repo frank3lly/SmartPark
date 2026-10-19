@@ -20,6 +20,13 @@ def record_detection_event(
     db_path: Union[str, Path] = DEFAULT_DB_PATH,
 ) -> int:
     """Inserts a camera log row and its child spot records atomically."""
+    ts = float(timestamp)
+    lat_ms = float(inference_time_ms)
+    tot_spots = int(total_spots)
+    occ_spots = int(occupied_spots)
+    bat_pct = float(battery_percentage) if battery_percentage is not None else None
+    bat_volt = float(battery_voltage) if battery_voltage is not None else None
+
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
 
@@ -33,12 +40,12 @@ def record_detection_event(
             """,
             (
                 camera_id,
-                timestamp,
-                inference_time_ms,
-                total_spots,
-                occupied_spots,
-                battery_percentage,
-                battery_voltage,
+                ts,
+                lat_ms,
+                tot_spots,
+                occ_spots,
+                bat_pct,
+                bat_volt,
                 image_path,
             ),
         )
@@ -52,7 +59,7 @@ def record_detection_event(
             )
             occupied_val = getattr(s, "occupied", None)
             if occupied_val is None and isinstance(s, dict):
-                occupied_val = s.get("occupied", False)
+                occupied_val = s.get("occupied", s.get("is_occupied", False))
             is_occ = 1 if occupied_val else 0
 
             conf_val = getattr(s, "confidence", None)
@@ -61,7 +68,7 @@ def record_detection_event(
             confidence = float(conf_val or 0.0)
 
             spot_rows.append(
-                (log_id, camera_id, spot_id, is_occ, confidence, timestamp)
+                (log_id, camera_id, spot_id, is_occ, confidence, ts)
             )
 
         # 3. Batch insert spots

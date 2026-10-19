@@ -218,8 +218,10 @@ def compute_timeline_series(
     for b_ts in sorted(buckets.keys()):
         b_logs = buckets[b_ts]
         avg_occ = sum(l["occupied_spots"] for l in b_logs) / len(b_logs)
-        avg_free = sum(l["total_spots"] - l["occupied_spots"] for l in b_logs) / len(
-            b_logs
+        avg_free = max(
+            0.0,
+            sum(l["total_spots"] - l["occupied_spots"] for l in b_logs)
+            / len(b_logs),
         )
         time_label = datetime.fromtimestamp(b_ts).strftime("%H:%M")
 

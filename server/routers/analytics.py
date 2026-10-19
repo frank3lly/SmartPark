@@ -72,3 +72,46 @@ def get_timeline_chart_data(
 )
 def get_storage_stats() -> Dict[str, Any]:
     return get_system_summary_stats()
+
+
+@router.get(
+    "/summary",
+    status_code=status.HTTP_200_OK,
+    summary="Get high-level flow analysis summary across all registered cameras",
+)
+def get_analytics_summary(
+    hours: float = Query(
+        default=2.0, ge=0.1, le=168.0, description="Observation window in hours"
+    ),
+) -> Dict[str, Any]:
+    cameras_summary = {}
+    total_stalls = 0
+    total_turnovers = 0
+    all_durations = []
+
+    for cam_id in sorted(server_state.camera_configs.keys()):
+        cam_sum = compute_camera_flow_summary(camera_id=cam_id, hours=hours)
+        cameras_summary[cam_id] = cam_sum
+        total_stalls += cam_sum["total_stalls"]
+        total_turnovers += cam_sum["total_turnovers"]
+        if cam_sum["average_duration_minutes"] > 0:
+            all_durations.append(cam_sum["average_duration_minutes"])
+
+    timeline = compute_timeline_series(hours=hours)
+    overall_avg_dur = (
+        round(sum(all_durations) / len(all_durations), 1) if all_durations else 0.0
+    )
+    turnover_rate = (
+        round(total_turnovers / total_stalls, 2) if total_stalls > 0 else 0.0
+    )
+
+    return {
+        "time_window_hours": hours,
+        "total_cameras": len(server_state.camera_configs),
+        "total_stalls": total_stalls,
+        "total_turnovers": total_turnovers,
+        "turnover_rate_per_stall": turnover_rate,
+        "average_duration_minutes": overall_avg_dur,
+        "cameras": cameras_summary,
+        "timeline": timeline,
+    }
