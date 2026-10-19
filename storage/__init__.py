@@ -1,3 +1,8 @@
+from storage.analytics import (
+    compute_camera_flow_summary,
+    compute_spot_flow_metrics,
+    compute_timeline_series,
+)
 from storage.database import DEFAULT_DB_PATH, get_db_connection, init_db
 from storage.repository import (
     get_camera_logs_window,
@@ -16,4 +21,7 @@ __all__ = [
     "get_camera_logs_window",
     "get_spot_history_window",
     "get_system_summary_stats",
+    "compute_spot_flow_metrics",
+    "compute_camera_flow_summary",
+    "compute_timeline_series",
 ]
