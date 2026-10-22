@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import re
 import sys
@@ -230,11 +231,83 @@ def generate_graphic_report(
     plt.close(fig)
 
 
+def generate_json_report(
+    report_paths: List[Path],
+    camera_id: str,
+    dataset_path: Path,
+    image_files: List[Path],
+    tp: int,
+    tn: int,
+    fp: int,
+    fn: int,
+    frame_accuracies: List[float],
+    gt_occupied_counts: List[int],
+    det_occupied_counts: List[int],
+    inference_latencies: List[float],
+    min_accuracy: float,
+) -> None:
+    """Generates structured JSON evaluation reports and saves to disk."""
+    total_spots = tp + tn + fp + fn
+    accuracy = (tp + tn) / total_spots if total_spots > 0 else 0.0
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+    inf_arr = np.array(inference_latencies) if inference_latencies else np.array([0.0])
+
+    payload: Dict[str, Any] = {
+        "report_type": "end_to_end_accuracy_evaluation",
+        "timestamp_iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "timestamp_epoch": time.time(),
+        "camera_id": camera_id,
+        "dataset": {
+            "directory": str(dataset_path.resolve()),
+            "total_frames_evaluated": len(image_files),
+            "total_spots_evaluated": total_spots,
+        },
+        "summary": {
+            "accuracy": round(accuracy, 4),
+            "accuracy_percent": round(accuracy * 100, 2),
+            "precision": round(precision, 4),
+            "recall": round(recall, 4),
+            "f1_score": round(f1, 4),
+            "verdict": "PASSED" if accuracy >= min_accuracy else "FAILED",
+            "min_accuracy_threshold": min_accuracy,
+        },
+        "confusion_matrix": {
+            "true_positives": tp,
+            "true_negatives": tn,
+            "false_positives": fp,
+            "false_negatives": fn,
+        },
+        "latency_inference_ms": {
+            "mean": round(float(np.mean(inf_arr)), 2),
+            "p50": round(float(np.percentile(inf_arr, 50)), 2),
+            "p90": round(float(np.percentile(inf_arr, 90)), 2),
+            "p95": round(float(np.percentile(inf_arr, 95)), 2),
+            "min": round(float(np.min(inf_arr)), 2),
+            "max": round(float(np.max(inf_arr)), 2),
+        },
+        "time_series": {
+            "frame_filenames": [p.name for p in image_files],
+            "frame_accuracies": [round(a, 4) for a in frame_accuracies],
+            "ground_truth_occupied": gt_occupied_counts,
+            "detected_occupied": det_occupied_counts,
+            "inference_latencies_ms": [round(lat, 2) for lat in inference_latencies],
+        },
+    }
+
+    raw_json = json.dumps(payload, indent=2)
+    for p in report_paths:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(raw_json, encoding="utf-8")
+        print(f"  [✓] Structured JSON report generated: {p.resolve()}")
+
+
 def run_end_to_end(
     dataset_dir: str = "test-samples/cam_01",
     camera_id_override: Optional[str] = None,
     max_frames: int = 10,
-    report_dest: str = "test/reports/report.jpg",
+    report_dest: str = "tests/reports/report.jpg",
     min_accuracy: float = 0.70,
 ) -> int:
     print("=" * 70)
@@ -424,28 +497,46 @@ def run_end_to_end(
                 print(f"  [✓] Analytics summary verified: {total_obs} observations recorded.")
 
                 # -----------------------------------------------------
-                # Phase 7: Generate Visual Graphic Report
+                # Phase 7: Generate Visual Graphic & JSON Performance Reports
                 # -----------------------------------------------------
-                print("\n[Phase 7] Generating Visual Graphic Performance Report...")
+                print("\n[Phase 7] Generating Visual Graphic & JSON Performance Reports...")
                 timestamp_str = time.strftime("%Y%m%d_%H%M%S")
-                informative_filename = f"report_{camera_id}_{timestamp_str}.jpg"
+                reports_dir = Path("tests/reports")
+                reports_dir.mkdir(parents=True, exist_ok=True)
 
-                dest_list = [
-                    Path("test/reports") / informative_filename,
-                    Path("tests/reports") / informative_filename,
-                    Path("test/reports") / f"report_{camera_id}_latest.jpg",
-                    Path("tests/reports") / f"report_{camera_id}_latest.jpg",
-                    Path("test/reports/report.jpg"),
-                    Path("tests/reports/report.jpg"),
+                informative_name = f"report_{camera_id}_{timestamp_str}"
+                latest_name = f"report_{camera_id}_latest"
+                generic_name = "report"
+
+                jpg_dest_list = [
+                    reports_dir / f"{informative_name}.jpg",
+                    reports_dir / f"{latest_name}.jpg",
+                    reports_dir / f"{generic_name}.jpg",
+                ]
+
+                json_dest_list = [
+                    reports_dir / f"{informative_name}.json",
+                    reports_dir / f"{latest_name}.json",
+                    reports_dir / f"{generic_name}.json",
                 ]
 
                 if report_dest:
                     custom_dest = Path(report_dest)
-                    if custom_dest not in dest_list:
-                        dest_list.append(custom_dest)
+                    if custom_dest.suffix.lower() == ".json":
+                        if custom_dest not in json_dest_list:
+                            json_dest_list.append(custom_dest)
+                        companion_jpg = custom_dest.with_suffix(".jpg")
+                        if companion_jpg not in jpg_dest_list:
+                            jpg_dest_list.append(companion_jpg)
+                    else:
+                        if custom_dest not in jpg_dest_list:
+                            jpg_dest_list.append(custom_dest)
+                        companion_json = custom_dest.with_suffix(".json")
+                        if companion_json not in json_dest_list:
+                            json_dest_list.append(companion_json)
 
                 generate_graphic_report(
-                    report_paths=dest_list,
+                    report_paths=jpg_dest_list,
                     camera_id=camera_id,
                     total_frames=len(image_files),
                     tp=tp,
@@ -457,6 +548,22 @@ def run_end_to_end(
                     det_occupied_counts=det_occupied_counts,
                     inference_latencies=inference_latencies,
                     sample_img_rgb=last_annotated_rgb,
+                )
+
+                generate_json_report(
+                    report_paths=json_dest_list,
+                    camera_id=camera_id,
+                    dataset_path=dataset_path,
+                    image_files=image_files,
+                    tp=tp,
+                    tn=tn,
+                    fp=fp,
+                    fn=fn,
+                    frame_accuracies=frame_accuracies,
+                    gt_occupied_counts=gt_occupied_counts,
+                    det_occupied_counts=det_occupied_counts,
+                    inference_latencies=inference_latencies,
+                    min_accuracy=min_accuracy,
                 )
 
                 # Overall classification score
@@ -484,7 +591,7 @@ def main() -> None:
     parser.add_argument("-d", "--dataset-dir", type=str, default="test-samples/cam_01", help="Path to sample images directory (default: test-samples/cam_01)")
     parser.add_argument("-c", "--camera-id", type=str, default=None, help="Camera ID (default: auto-detected from folder name)")
     parser.add_argument("-m", "--max-frames", type=int, default=10, help="Max frames to test (default: 10, set 0 for all)")
-    parser.add_argument("-r", "--report-path", type=str, default="test/reports/report.jpg", help="Report graphic output destination (default: test/reports/report.jpg)")
+    parser.add_argument("-r", "--report-path", type=str, default="tests/reports/report.jpg", help="Report output destination (default: tests/reports/report.jpg)")
     parser.add_argument("--min-accuracy", type=float, default=0.70, help="Minimum accuracy required to pass (default: 0.70)")
 
     args = parser.parse_args()

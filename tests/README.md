@@ -7,7 +7,7 @@ Harness to evaluate end-to-end detection accuracy against PKLot ground truth, be
 ## Command Examples
 
 ### 1. Run End-to-End Evaluation on Camera 01 (Default 10 Frames)
-Ingests 10 sample frames into an isolated database, compares YOLO detections against PKLot XML ground truth, and outputs a visual dashboard to `test/reports/`:
+Ingests 10 sample frames into an isolated database, compares YOLO detections against PKLot XML ground truth, and outputs visual graphic and structured JSON reports to `tests/reports/`:
 ```bash
 .venv/bin/python tests/test_end_to_end.py -d test-samples/cam_01
 ```
@@ -31,9 +31,9 @@ Evaluates detection accuracy for Camera 03 against a dense 100-spot configuratio
 ```
 
 ### 5. Custom Accuracy Threshold and Report Destination
-Overrides minimum required accuracy threshold and custom output report path:
+Overrides minimum required accuracy threshold and custom output report path (both `.jpg` and `.json` are created):
 ```bash
-.venv/bin/python tests/test_end_to_end.py -d test-samples/cam_01 -m 20 --min-accuracy 0.85 -r test/reports/cam01_custom.jpg
+.venv/bin/python tests/test_end_to_end.py -d test-samples/cam_01 -m 20 --min-accuracy 0.85 -r tests/reports/cam01_custom.jpg
 ```
 
 ### 6. Rapid Smoke Test for GPU VRAM & Stress Benchmark
