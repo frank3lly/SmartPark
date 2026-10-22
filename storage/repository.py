@@ -17,7 +17,7 @@ def record_detection_event(
     battery_percentage: Optional[float] = None,
     battery_voltage: Optional[float] = None,
     image_path: Optional[str] = None,
-    db_path: Union[str, Path] = DEFAULT_DB_PATH,
+    db_path: Optional[Union[str, Path]] = None,
 ) -> int:
     """Inserts a camera log row and its child spot records atomically."""
     ts = float(timestamp)
@@ -91,7 +91,7 @@ def record_detection_event(
 
 def get_latest_camera_log(
     camera_id: str,
-    db_path: Union[str, Path] = DEFAULT_DB_PATH,
+    db_path: Optional[Union[str, Path]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Retrieves the most recent log and spot states for a specific camera."""
     with get_db_connection(db_path) as conn:
@@ -128,7 +128,7 @@ def get_camera_logs_window(
     start_time: Optional[float] = None,
     end_time: Optional[float] = None,
     limit: int = 1000,
-    db_path: Union[str, Path] = DEFAULT_DB_PATH,
+    db_path: Optional[Union[str, Path]] = None,
 ) -> List[Dict[str, Any]]:
     """Queries camera logs within an optional time range and camera filter."""
     query = "SELECT * FROM camera_logs WHERE 1=1"
@@ -158,7 +158,7 @@ def get_spot_history_window(
     start_time: Optional[float] = None,
     end_time: Optional[float] = None,
     limit: int = 5000,
-    db_path: Union[str, Path] = DEFAULT_DB_PATH,
+    db_path: Optional[Union[str, Path]] = None,
 ) -> List[Dict[str, Any]]:
     """Retrieves chronological state events for spots to compute transitions."""
     query = "SELECT * FROM spot_history WHERE camera_id = ?"
@@ -183,7 +183,7 @@ def get_spot_history_window(
 
 
 def get_system_summary_stats(
-    db_path: Union[str, Path] = DEFAULT_DB_PATH,
+    db_path: Optional[Union[str, Path]] = None,
 ) -> Dict[str, Any]:
     """Retrieves database-wide storage statistics."""
     with get_db_connection(db_path) as conn:

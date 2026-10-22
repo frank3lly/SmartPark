@@ -18,7 +18,7 @@ def compute_spot_flow_metrics(
     spot_id: str,
     start_time: Optional[float] = None,
     end_time: Optional[float] = None,
-    db_path: Union[str, Path] = DEFAULT_DB_PATH,
+    db_path: Optional[Union[str, Path]] = None,
 ) -> Dict[str, Any]:
     """Computes turnover count, average stay duration, and occupancy rate for one spot."""
     events = get_spot_history_window(
@@ -97,7 +97,7 @@ def compute_spot_flow_metrics(
 def compute_camera_flow_summary(
     camera_id: str,
     hours: float = 2.0,
-    db_path: Union[str, Path] = DEFAULT_DB_PATH,
+    db_path: Optional[Union[str, Path]] = None,
 ) -> Dict[str, Any]:
     """Computes aggregate flow metrics, turnover rates, and peak usage for a camera."""
     now = time.time()
@@ -115,6 +115,7 @@ def compute_camera_flow_summary(
             "camera_id": camera_id,
             "time_window_hours": hours,
             "total_stalls": 0,
+            "total_observations": 0,
             "total_turnovers": 0,
             "turnover_rate_per_stall": 0.0,
             "average_duration_minutes": 0.0,
@@ -174,6 +175,7 @@ def compute_camera_flow_summary(
         "camera_id": camera_id,
         "time_window_hours": hours,
         "total_stalls": total_stalls,
+        "total_observations": len(logs),
         "total_turnovers": total_turnovers,
         "turnover_rate_per_stall": turnover_rate,
         "average_duration_minutes": overall_avg_duration,
@@ -188,7 +190,7 @@ def compute_timeline_series(
     camera_id: Optional[str] = None,
     hours: float = 2.0,
     bucket_minutes: int = 15,
-    db_path: Union[str, Path] = DEFAULT_DB_PATH,
+    db_path: Optional[Union[str, Path]] = None,
 ) -> List[Dict[str, Any]]:
     """Bins detection logs into time intervals for frontend charts."""
     now = time.time()

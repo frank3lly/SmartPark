@@ -3,7 +3,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator, Union
+from typing import Generator, Optional, Union
 
 logger = logging.getLogger("parqueame.storage.database")
 
@@ -41,8 +41,10 @@ CREATE INDEX IF NOT EXISTS idx_spot_history_log ON spot_history(log_id);
 """
 
 
-def init_db(db_path: Union[str, Path] = DEFAULT_DB_PATH) -> None:
+def init_db(db_path: Optional[Union[str, Path]] = None) -> None:
     """Creates the SQLite database file and tables if they do not exist."""
+    if db_path is None:
+        db_path = DEFAULT_DB_PATH
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -58,9 +60,11 @@ def init_db(db_path: Union[str, Path] = DEFAULT_DB_PATH) -> None:
 
 @contextmanager
 def get_db_connection(
-    db_path: Union[str, Path] = DEFAULT_DB_PATH,
+    db_path: Optional[Union[str, Path]] = None,
 ) -> Generator[sqlite3.Connection, None, None]:
     """Context manager providing a managed SQLite connection with Row factory and foreign keys."""
+    if db_path is None:
+        db_path = DEFAULT_DB_PATH
     path = Path(db_path)
     if not path.exists():
         init_db(path)

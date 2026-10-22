@@ -21,6 +21,12 @@ router = APIRouter(prefix="/api/v1/analytics", tags=["Flow Analytics"])
     status_code=status.HTTP_200_OK,
     summary="Get parking flow analysis, turnover rate, and duration metrics",
 )
+@router.get(
+    "/cameras/{camera_id}/summary",
+    response_model=CameraFlowSummaryResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
 def get_camera_flow_analytics(
     camera_id: str,
     hours: float = Query(

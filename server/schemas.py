@@ -83,6 +83,7 @@ class CameraFlowSummaryResponse(BaseModel):
     camera_id: str
     time_window_hours: float
     total_stalls: int
+    total_observations: Optional[int] = 0
     total_turnovers: int
     turnover_rate_per_stall: float
     average_duration_minutes: float
