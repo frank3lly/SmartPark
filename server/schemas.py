@@ -68,3 +68,35 @@ class HealthResponse(BaseModel):
     device_name: Optional[str] = Field(default=None, description="GPU hardware name")
     registered_cameras: int = Field(..., description="Count of configured camera JSON profiles")
     timestamp: float = Field(..., description="Current server timestamp")
+
+
+class SpotFlowMetrics(BaseModel):
+    spot_id: str
+    turnover_count: int
+    average_duration_minutes: float
+    occupancy_percentage: float
+    total_sessions_recorded: int
+    currently_occupied: bool
+
+
+class CameraFlowSummaryResponse(BaseModel):
+    camera_id: str
+    time_window_hours: float
+    total_stalls: int
+    total_observations: Optional[int] = 0
+    total_turnovers: int
+    turnover_rate_per_stall: float
+    average_duration_minutes: float
+    average_occupancy_percentage: float
+    peak_occupied_spots: int
+    peak_timestamp: Optional[float] = None
+    spots_breakdown: Dict[str, SpotFlowMetrics] = Field(default_factory=dict)
+
+
+class TimelineBucketItem(BaseModel):
+    timestamp: float
+    time_label: str
+    occupied_avg: float
+    free_avg: float
+    sample_count: int
+

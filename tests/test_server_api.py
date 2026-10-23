@@ -8,6 +8,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from server.main import app
+from server.state import server_state
 
 
 def run_tests() -> int:
@@ -71,8 +72,9 @@ def run_tests() -> int:
         up_data = r_upload.json()
         assert up_data["status"] == "success"
         assert up_data["camera_id"] == "cam_01"
-        assert up_data["total_spots"] == 5
-        assert up_data["occupied_spots"] + up_data["free_spots"] == 5
+        expected_spots = len(server_state.camera_configs["cam_01"].spots)
+        assert up_data["total_spots"] == expected_spots
+        assert up_data["occupied_spots"] + up_data["free_spots"] == expected_spots
         assert up_data["inference_time_ms"] > 0
         print(
             f"  [✓] Upload processed in {up_data['inference_time_ms']:.1f}ms: "

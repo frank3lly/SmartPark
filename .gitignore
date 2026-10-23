@@ -16,6 +16,7 @@ runs/
 
 # Data & Storage
 storage/data/
+storage/images/
 *.sqlite
 *.sqlite3
 *.db
