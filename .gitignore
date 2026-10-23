@@ -27,7 +27,7 @@ uploads/
 .vscode/
 .DS_Store
 *.log
-__specs__/
-test-samples/
-tests/output/
-tests/reports/
+__*
+test*
+verify*
+__specs__
